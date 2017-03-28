@@ -44,9 +44,10 @@ $(document).ready(function() {
 
 				//4) Add people to the map and update the chat interface
 				addPeopleToMap(latitude, longitude, radius).then(function(realPeople) {
-					//5) Display real people on the chat interface
+					//5) Display the real people on the chat interface
+					// with conversations
 					addPeopleToChat(realPeople).then(function() {
-
+						console.log('loading complete');
 					});
 
 				});
@@ -54,22 +55,65 @@ $(document).ready(function() {
 		});
 	});
 
-	//Click Handlers
+	//Click/Input Handlers
+
+	//Send message function
+	$(".send_message").click(function(e) {
+		e.preventDefault();
+		sendMessage();
+	});
+	//also when enter is pressed
+	$(".message_input").keyup(function(e) {
+		if (e.which === 13) { sendMessage(); }
+	})
 
 	// Helper functions
+	function sendMessage() {
+		var conversationId = $('#tabs').find('.conversation:visible')[0].id;
+		var message = $(".message_input").val();
+		var timestamp = new Date();
+		var sentence = "there is an sms message named 'sms_{uid}' that is from the number ' 447912345678' and is to the number ' 441403540126' and has '" + timestamp + "' as timestamp and has '" + message + "' as message text.";
+		$.post(CE_BACKEND_BASE_URL+'sentences?ceTEXT='+escape(sentence)+'&action=save', function(result) {
+			if (result.alerts.errors.length === 0) {
+				console.log(result);
+				addChatMessage(conversationId, message, 'left');
+				$(".message_input").val("");
+			} else {
+				console.log('CE ERROR');
+				console.log(result);
+			}
+		});
+
+		if (conversationId === 'sendToAll_chat') {
+			//If it's send to all, put message into each conversation div
+			$(".conversation").each(function(index, conversation) {
+				if (conversation.id !== 'sendToAll_chat') {
+					addChatMessage(conversation.id, message, 'left');
+				}
+			})
+		}
+	}
+
 	function addPeopleToChat(realPeople) {
 		return new Promise(function(resolve, reject) {
-
-			//Add tabs
-			// $( "#tabs" ).tabs();
 
 			var getConversationsFromCE = function() {
 				return new Promise(function(resolve, reject) {
 					var conversationsToReturn = [];
 					//Get converstations from CE
 					$.get(CE_BACKEND_BASE_URL+'concepts/conversation/instances?style=normalised', function(conversations) {
-						console.log(conversations);
-						console.log(realPeople);
+
+						//Append a send to all
+						if (realPeople.length > 0) {
+							$("#conversationList").append('<li><a href="#sendToAll_chat">Send to all</a></li>');
+							$('#tabs').append(
+								'<div id="sendToAll_chat" class="conversation">'+
+								    '<h5 class="name">Send to all</h5>'+
+										'<ul class="messages"></ul>'+
+									'</div>'+
+								'</div>');
+						}
+
 						for (var i=0; i<realPeople.length; i++) {
 
 							//Add an item to the ul
@@ -80,7 +124,6 @@ $(document).ready(function() {
 							for (var j=0; j<conversations.length; j++) {
 								// console.log(real)
 								if (conversations[j]._id === (realPeople[i].name+'-SafariCom')) {
-									console.log(conversations[j]);
 									var messageIds = conversations[j].message;
 									//add a conversation div to html
 									$('#tabs').append(
@@ -105,7 +148,6 @@ $(document).ready(function() {
 					var completedIndexes = [];
 					var checkForCompletion = function(i) {
 						completedIndexes.push(i);
-
 						if (completedIndexes.length == conversations.length) {
 							resolve();
 						}
@@ -144,21 +186,20 @@ $(document).ready(function() {
 				});
 			}
 
+			//1) Get the conversations from CE for the real people
 			getConversationsFromCE().then(function(converstations) {
-				//get messages
+				//2) Get messages for each conversation
 				addMessagesForEachConversation(converstations).then(function() {
+
+					//3) Initialise tabs
 					$( "#tabs" ).tabs();
-				})
-			})			
-
-			
-			
-
-		})
+					resolve();
+				});
+			});		
+		});
 	}
 
 	function addChatMessage(conversationDiv, message, side) {
-		console.log(conversationDiv, message, side);
 		$("#"+conversationDiv+" ul").append(
 			'<li class="message '+side+'">'+
 				 '<div class="avatar"></div>'+
@@ -177,8 +218,6 @@ $(document).ready(function() {
 			$.get(url, function(ce) {
 				var people = ce.result;
 	            for (var i=0; i<people.length; i++) {
-	            	console.log(people[i].instance._id);
-	            	console.log(people[i].instance.property_values);
 					//add marker to map
 					var lat = people[i].instance.property_values.latitude[0];
 					var lng = people[i].instance.property_values.longitude[0];

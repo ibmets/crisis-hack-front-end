@@ -160,7 +160,7 @@
   text-align: center;
 }
 .conversation {
-  height: 100%;
+  height: calc(100% - 35.8px - 14px); //top_menu height - padding
 }
 
 .bottom_wrapper {
