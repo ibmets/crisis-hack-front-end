@@ -1,11 +1,3 @@
-// * {
-//   box-sizing: border-box;
-// }
-
-body {
-  // background-color: #edeff2;
-  font-family: "Calibri", "Roboto", sans-serif;
-}
 
 .chat_window {
   // position: absolute;
@@ -77,15 +69,15 @@ body {
   list-style: none;
   padding: 20px 10px 0 10px;
   margin: 0;
-  height: 540px;
-  overflow: scroll;
+  height: 100%;
+  overflow: auto;
 }
 .messages .message {
   clear: both;
   overflow: hidden;
   margin-bottom: 20px;
   transition: all 0.5s linear;
-  opacity: 0;
+  // opacity: 0;
 }
 .messages .message.left .avatar {
   background-color: #f5886e;
@@ -157,15 +149,18 @@ body {
   font-weight: 300;
 }
 
-.conversation {
-  display: none;
-}
-.conversation.active {
-  display: inline;
-}
+// .conversation {
+//   display: none;
+// }
+// .conversation.active {
+//   display: inline;
+// }
 .conversation .name {
   font-weight: bold;
   text-align: center;
+}
+.conversation {
+  height: 100%;
 }
 
 .bottom_wrapper {
@@ -218,6 +213,6 @@ body {
   line-height: 48px;
 }
 
-.message_template, .conversation_template {
-  display: none;
-}
+// .message_template, .conversation_template {
+//   display: none;
+// }

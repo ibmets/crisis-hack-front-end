@@ -18,7 +18,8 @@ $(document).ready(function() {
                 point = L.point( coordsX, coordsY ),
                 markerCoords = map.containerPointToLatLng(point),
 				latitude = markerCoords.lat,
-				longitude = markerCoords.lng;
+				longitude = markerCoords.lng,
+				radius = 2000;
 
 				//Add marker at center of circle with ebola icon
 				var ebolaIcon = L.icon({
@@ -35,19 +36,176 @@ $(document).ready(function() {
 				    color: 'red',
 				    fillColor: '#f03',
 				    fillOpacity: 0.5,
-				    radius: 2000
+				    radius: radius
 				}).addTo(group);
 
 				//3) Switch the UI
 				switchUI();
+
+				//4) Add people to the map and update the chat interface
+				addPeopleToMap(latitude, longitude, radius).then(function(realPeople) {
+					//5) Display real people on the chat interface
+					addPeopleToChat(realPeople).then(function() {
+
+					});
+
+				});
 			}
 		});
 	});
 
-
 	//Click Handlers
 
 	// Helper functions
+	function addPeopleToChat(realPeople) {
+		return new Promise(function(resolve, reject) {
+
+			//Add tabs
+			// $( "#tabs" ).tabs();
+
+			var getConversationsFromCE = function() {
+				return new Promise(function(resolve, reject) {
+					var conversationsToReturn = [];
+					//Get converstations from CE
+					$.get(CE_BACKEND_BASE_URL+'concepts/conversation/instances?style=normalised', function(conversations) {
+						console.log(conversations);
+						console.log(realPeople);
+						for (var i=0; i<realPeople.length; i++) {
+
+							//Add an item to the ul
+							$("#conversationList").append('<li><a href="#'+realPeople[i].name+'_chat">'+realPeople[i].name+'</a></li>');
+
+							//Build the conversation div
+							//find conversation for this person
+							for (var j=0; j<conversations.length; j++) {
+								// console.log(real)
+								if (conversations[j]._id === (realPeople[i].name+'-SafariCom')) {
+									console.log(conversations[j]);
+									var messageIds = conversations[j].message;
+									//add a conversation div to html
+									$('#tabs').append(
+										'<div id="'+realPeople[i].name+'_chat" class="conversation">'+
+										    '<h5 class="name">'+realPeople[i].name+'</h5>'+
+												'<ul class="messages"></ul>'+
+											'</div>'+
+										'</div>');
+									conversationsToReturn.push({id: realPeople[i].name+'SafariCom', messageIds: messageIds});
+									break;
+								}
+							}
+						}
+						resolve(conversationsToReturn);
+					})
+				});
+			}
+
+			var addMessagesForEachConversation = function(conversations) {
+				return new Promise(function(resolve, reject) {
+
+					var completedIndexes = [];
+					var checkForCompletion = function(i) {
+						completedIndexes.push(i);
+
+						if (completedIndexes.length == conversations.length) {
+							resolve();
+						}
+					}
+				
+
+					for (var i=0; i<conversations.length; i++) {
+						(function(iterationOuter) {
+							//get messages from CE and display in the chat
+							var messageIds = conversations[iterationOuter].messageIds;
+							
+							var requestsCompleted = 0;
+							for (var j=0; j<messageIds.length; j++) {
+								(function(iterationInner) {
+									$.get(CE_BACKEND_BASE_URL+'instances/'+messageIds[iterationInner], function(messageResponse) {
+										requestsCompleted++;
+										var isFrom = messageResponse.property_values["is from"][0];
+										var text = messageResponse.property_values["message text"][0];
+										var isTo = messageResponse.property_values["is to"][0];
+
+										var messageSide = isTo === 'SafariCom' ? 'left' : 'right';
+										var conversationDiv = isTo === 'SafariCom' ? isFrom+'_chat' : isTo+'_chat';
+										//Display message in correct conversation
+										addChatMessage(conversationDiv, text, messageSide);
+										
+										if (requestsCompleted === messageIds.length) {
+											checkForCompletion(iterationOuter);
+										}
+									})
+								})(j);
+
+								
+							}
+						})(i);
+					}
+				});
+			}
+
+			getConversationsFromCE().then(function(converstations) {
+				//get messages
+				addMessagesForEachConversation(converstations).then(function() {
+					$( "#tabs" ).tabs();
+				})
+			})			
+
+			
+			
+
+		})
+	}
+
+	function addChatMessage(conversationDiv, message, side) {
+		console.log(conversationDiv, message, side);
+		$("#"+conversationDiv+" ul").append(
+			'<li class="message '+side+'">'+
+				 '<div class="avatar"></div>'+
+				 '<div class="text_wrapper">'+
+					'<div class="text">'+message+'</div>'+
+				 '</div>'+
+			 '</li>');
+	}
+
+	function addPeopleToMap(latitude, longitude, radius) {
+		return new Promise(function(resolve, reject) {
+			//radius is in meters so convert to km
+			radius = radius / 1000;
+			var url = CE_BACKEND_BASE_URL+"concepts/person/instances/nearby?distance="+radius+"&latitude="+latitude+"&longitude="+longitude+"&style=normalised";
+			var realPeople = [];
+			$.get(url, function(ce) {
+				var people = ce.result;
+	            for (var i=0; i<people.length; i++) {
+	            	console.log(people[i].instance._id);
+	            	console.log(people[i].instance.property_values);
+					//add marker to map
+					var lat = people[i].instance.property_values.latitude[0];
+					var lng = people[i].instance.property_values.longitude[0];
+	                var phoneIcon;
+	                if (people[i].instance.property_values["is real"]) {
+	                    phoneIcon = L.icon({
+	                        iconUrl: 'images/marker-icon-ourphone.png',
+	                        iconSize: [25,41],
+	                        iconAnchor: [12.5, 41]
+	                    })
+
+	                    //store list of real people
+	                    realPeople.push({name: people[i].instance._id});
+	                } else {
+	                    phoneIcon = L.icon({
+	                        iconUrl: 'images/marker-icon-phone.png',
+	                        iconSize: [25,41],
+	                        iconAnchor: [12.5, 41]
+	                    })
+	                }
+					L.marker([lat,lng], {icon: phoneIcon}).addTo(group);
+				}
+				resolve(realPeople);
+			});
+		})
+	}
+
 	function displayCrisisTypes() {
 		return new Promise(function(resolve, reject) {
 			//make a call to CE store and get crisis types

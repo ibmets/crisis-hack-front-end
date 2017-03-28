@@ -55,3 +55,7 @@ html, body, .row {
 .drag {
 	z-index: 10000;
 }
+
+#tabs {
+	height: calc(100% - 95px - 35px); // - bottom send message height - top menu height
+}
